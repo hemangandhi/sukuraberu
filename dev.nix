@@ -6,13 +6,7 @@ with import <nixpkgs> {};
 stdenv.mkDerivation {
   name = "sukuraberu-dev-env";
   buildInputs = [
-    # ng editor
-    emacs26Packages.ng2-mode
-    # JS deps
-    nodejs-12_x
-    yarn
-    nodePackages."@angular/cli"
     # Python
-    python
+    python3    
   ];
 }
