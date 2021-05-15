@@ -1,20 +1,26 @@
-from flask import Flask, send_from_directory
-from flask_socketio import SocketIO, emit
+import socketio
 
-app = Flask(__name__, static_url_path = '', static_folder='../frontend')
-socket_io = SocketIO(app)
+STATIC_fiLES = {
+    '/': '../frontend/index.html',
+    '/static': '../frontend/'
+}
 
-def emit_returned_value(event):
-    def wrapper(fn):
-        def wrapt(data):
-            emit(fn(data))
-        return wrapt
-    return wrapper
+sio = socketio.AsyncServer()
+app = socketio.ASGIApp(sio, static_files=STATIC_FILES)
+
+def emit_returned_value(fn):
+    def wrapt(data):
+        v = fn(data)
+        if v is not None:
+            sio.emit(*v)
+    return wrapt
 
 @socket_io.on('turn')
 @emit_returned_value('update_turn')
-def handle_turn(turn_data):
-    pass
+def handle_turn(sid, turn_data):
+    async with sio.session(sid) as sess:
+        if sess['game'] is None:
+            return 'error', 'game is not yet set up'2
     
 
 if __name__ == "__main__":

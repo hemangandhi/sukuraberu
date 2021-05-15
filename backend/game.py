@@ -2,14 +2,16 @@ from dataclasses import dataclass
 from typing import Tuple, Dict, List, Optional
 from enum import Enum
 
+# Literally because I want the __init__ from dataclass but also a few
+# invariants. (And I can.)
 def with_post_init_invariant(inv, err_template = "{}"):
     def wrapper(cls):
         def wrapped_init(self, *args, **kwargs):
             cls.__init__(self, *args, **kwargs)
             if (failures := inv(self)):
                 raise ValueError(err_template.format(failures))
-        wrapped_dict = dict(cls.__init__)
-        wrapped_dict['__init__'] = wrapped_init
+        # I am the walrus, Goo goo g'joob
+        (wrapped_dict := dict(cls.__dict__))['__init__'] = wrapped_init
         return type('Wrapping' + cls.__name__, cls.__bases__, wrapped_dict)
     return wrapper
 
@@ -36,7 +38,7 @@ class Tile:
     face: str
     modifications: str
     score: int
-    blank_tile_modification: Optiona[str]
+    blank_tile_modification: Optional[str]
 
 @with_post_init_invariant(
     (lambda wd: [c for c, t in zip(wd.characters, wd.tiles) if c not in t.modifications]\
@@ -61,12 +63,15 @@ class Player:
 
 
 def game_init_invariant(game) -> str:
+    if not game.players:
+        return "Expected nonzero number of players"
     game.turn %= len(game.players)
     if any(len(row) != len(game.board) for row in game.board):
         return "Board in not square"
     if not all(0 <= key[0] < len(game.board) and 0 <= key[1] < len(game.board) for key in game.special_spots.keys()):
         return "Special tile misplaced"
     return ""
+
 
 @with_post_init_invariant(game_init_invariant)
 @dataclass
@@ -78,7 +83,7 @@ class Game:
     bag_tiles: List[Tile]
     turn: int = 0
 
-    @static_method
+    @staticmethod
     def validate_turn(hand: List[Tile], word: Word, board: List[List[Tile]],
                       played_tiles: List[Tile]) -> Tuple[bool, str]:
         row, col = word.first_character_point
@@ -90,7 +95,7 @@ class Game:
             return False, "Invalid starting col for word " + str(word)
         for offset, tile in enumerate(word.tiles):
             board_tile = board[row + offset][col] if word.is_vertical else board[row][col + offset]
-            if board_tile.face = ' ' and board_tile.blank_tile_modification is None:
+            if board_tile.face == ' ' and board_tile.blank_tile_modification is None:
                 if tile not in hand:
                     return False, "Player does not have the tile to play {}".format(tile)
                 played_tiles.append(tile)
