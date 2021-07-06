@@ -2,12 +2,45 @@
 <html lang="jp">
   <head>
     <title>Scrabble</title>
+    <style>
+      .cell {
+	  min-height: 100px;
+	  /* TODO: voodoo to make koma land on top? */
+	  min-width: 60px;
+	  border: solid grey;
+      }
+
+      .letter-bonus {
+	  background: lightblue;
+      }
+
+      .word-bonus {
+	  background: pink;
+      }
+
+      #board {
+	  table-layout: fixed;
+      }
+
+      .koma-tag {
+	  max-width: 30px;
+      }
+
+      #my-hand {
+	  border: solid grey;
+      }
+    </style>
   </head>
 
   <body>
     <ul id="players"></ul>
     <table id="board"></table>
     <div id="my-tiles"></div>
+    <div id="others-tiles"></div>
+    <div id="event-log"></div>
+
+    <script src="scrabble-board.js"></script>
+    <script src="index.js"></script>
   </body>
   
 </html>
