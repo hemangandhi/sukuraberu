@@ -68,7 +68,9 @@ function KomaContainer(hand_elt, nkoma_limit, for_koma_state) {
 		}
 		return;
 	    }
-	    // Weirdness: this is for slightly better effects since we don't want the element to vanish when the user starts dragging it? 
+	    // Weirdness: this is for slightly better effects since we don't want the element to vanish when the user starts dragging it?
+	    // It casuses a slight inconsistency between the list in the container and the actual elements, but this even should always
+	    // fire and make everything eventually consistent.
 	    hand_elt.removeChild(koma_elt);
 	});
     }
