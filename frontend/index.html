@@ -26,7 +26,7 @@
 	  max-width: 30px;
       }
 
-      #my-hand {
+      #my-tiles {
 	  border: solid grey;
       }
     </style>
@@ -37,9 +37,12 @@
     <table id="board"></table>
     <div id="my-tiles"></div>
     <div id="others-tiles"></div>
-    <div id="event-log"></div>
+    <ol id="event-log"></ol>
+    <label for="name">Name:</label><input type="text" id="name"></input>
+    <input type="button" id="join-game" value="Join Game"></input>
 
     <script src="scrabble-board.js"></script>
+    <script src="koma.js"></script>
     <script src="index.js"></script>
   </body>
   

@@ -231,4 +231,7 @@ def make_default_scrabble(players: List[Player]):
     }, 2)
 
     # Note: the blank tile for the game is Tile('', ALL_OF_HIRAGANA, 0, None).
-    return Game(players, [[Tile(' ', ' ', 0, None) for i in range(BOARD_SIZE)] for j in range(BOARD_SIZE)], SPECIAL_SPOTS, [], TILES)
+    g = Game(players, [[Tile(' ', ' ', 0, None) for i in range(BOARD_SIZE)] for j in range(BOARD_SIZE)], SPECIAL_SPOTS, [], TILES)
+    for p in players:
+        g.deal_tiles(p)
+    return g
