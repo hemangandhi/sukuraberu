@@ -24,6 +24,7 @@ class WebSocketHandler:
                     except json.decoder.JSONDecodeError:
                         await self.ws.send_str(json.dumps({"type": 'error', "payload": "couldn't parse JSON"}))
             print('Otsukaresamadeshita')
+            return self.ws
         return handler
                     
     def on(self, event_name):
@@ -67,10 +68,16 @@ def handle_join(join_data):
         return 'error', 'invalid player description'
     players.append(new_player)
 
-    return 'player-list', {'players': [p.to_dict() for p in players]}
+    game = session.get('game')
+    if game is None:
+        return 'player-list', {'players': [p.to_dict() for p in players]}
+    else:
+        game.deal_tiles(new_player)
+        return 'game-state', game.to_dict()
 
 @sio.on('start-game')
 def handle_game_start(start):
+    # 'start' is unused
     if 'game' in session:
         return 'error', 'game already started'
     if len(session.get('players', [])) == 0:

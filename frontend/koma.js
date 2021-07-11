@@ -25,10 +25,11 @@ var KomaState = {
     UTTA:16
 };
 
-function Koma(label, score, state, is_public) {
+// @dataclass # T_T
+function Koma(label, score, state, is_public, mods) {
     this.label = label;
     this.score = score;
-    this.mods = '';
+    this.mods = mods;
     this.state = state;
     // If state was ever KomaState.TANIN
     this.is_public = is_public;

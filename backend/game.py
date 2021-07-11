@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import Tuple, Dict, List, Optional
 from enum import Enum
 import random
@@ -10,18 +10,6 @@ def copy_to_array(tile, n):
         tiles.append(deepcopy(tile))
     return tiles
 
-# Literally because I want the __init__ from dataclass but also a few
-# invariants. (And I can.)
-def with_post_init_invariant(inv, err_template = "{}"):
-    def wrapper(cls):
-        def wrapped_init(self, *args, **kwargs):
-            cls.__init__(self, *args, **kwargs)
-            if (failures := inv(self)):
-                raise ValueError(err_template.format(failures))
-        # I am the walrus, Goo goo g'joob
-        (wrapped_dict := dict(cls.__dict__))['__init__'] = wrapped_init
-        return type(cls.__name__, cls.__bases__, wrapped_dict)
-    return wrapper
 
 class BoardCell(Enum):
     DEFAULT = 0
@@ -46,7 +34,6 @@ class BoardCell(Enum):
         return [self.value - 1, 1]
 
 
-@with_post_init_invariant(lambda t: t.face in t.modifications, "The face of a tile must be one of the valid modifications")
 @dataclass(eq = True)
 class Tile:
     face: str
@@ -54,10 +41,10 @@ class Tile:
     score: int
     blank_tile_modification: Optional[str]
 
-@with_post_init_invariant(
-    (lambda wd: [c for c, t in zip(wd.characters, wd.tiles) if c not in t.modifications]\
-                 or len(wd.characters) != len(wd.tiles) or len(wd.characters) < 2),
-     "Invalid characters (or 'True' if the word is too short): {}")
+    def __post_init__(self):
+        if self.face not in self.modifications:
+            raise ValueError("Face must be one of the modifications")
+
 @dataclass
 class Word:
     characters: str
@@ -65,13 +52,19 @@ class Word:
     first_character_point: Tuple[int, int]
     is_vertical: bool
 
+    def __post_init__(self):
+        if len(self.characters) < 2:
+            raise ValueError("Word is too short")
+        if (bad := [c for c, t in zip(self.characters, self.tiles) if c not in t.modifications]):
+            raise ValueError("Characters with bad modifications: {}".format(bad))
+        if len(self.characters) != len(self.tiles):
+            raise ValueError("Mismatching number of tiles and characters")
+
     def __str__(self):
         return ''.join(self.characters)
 
     def to_dict(self):
-        self_dict = self.__dict__
-        self_dict['hand'] = [t.__dict__ for t in self.tiles]
-        return self_dict
+        return asdict(self)
 
 
 @dataclass
@@ -81,23 +74,9 @@ class Player:
     score: int = 0
 
     def to_dict(self):
-        self_dict = self.__dict__
-        self_dict['hand'] = [t.__dict__ for t in self.hand]
-        return self_dict
+        return asdict(self)
 
 
-def game_init_invariant(game) -> str:
-    if not game.players:
-        return "Expected nonzero number of players"
-    game.turn %= len(game.players)
-    if any(len(row) != len(game.board) for row in game.board):
-        return "Board in not square"
-    if not all(0 <= key[0] < len(game.board) and 0 <= key[1] < len(game.board) for key in game.special_spots.keys()):
-        return "Special tile misplaced"
-    return ""
-
-
-@with_post_init_invariant(game_init_invariant)
 @dataclass
 class Game:
     players: List[Player]
@@ -108,6 +87,16 @@ class Game:
     turn: int = 0
     hand_capacity: int = 7
 
+    def __post_init__(self) -> str:
+        if not self.players:
+            raise ValueError("Expected nonzero number of players")
+        self.turn %= len(self.players)
+        if any(len(row) != len(self.board) for row in self.board):
+            raise ValueError("Board in not square")
+        if not all(0 <= key[0] < len(self.board) and 0 <= key[1] < len(self.board) for key in self.special_spots.keys()):
+            raise ValueError("Special tile misplaced")
+
+    
     @staticmethod
     def validate_turn(hand: List[Tile], word: Word, board: List[List[Tile]],
                       played_tiles: List[Tile]) -> Tuple[bool, str]:
@@ -168,23 +157,22 @@ class Game:
         self.bag_tiles = self.bag_tiles[n_draw:]
 
     def to_dict(self):
-        # TODO: do we want all the fields?
-        return {
-            'players': [p.to_dict() for p in self.players],
-            'board': [[t.__dict__ for t in r] for r in self.board],
-            'special_spots': [{'x': x, 'y': y, 'cell': self.special_spots[(x, y)].to_js_tuple()} for x, y in self.special_spots],
-            'words': [w.to_dict() for w in self.words],
-            'turn': self.turn
-        }
+        d = asdict(self)
+        del d['bag_tiles']
+        d['special_spots'] = [{'x': x, 'y': y, 'cell': self.special_spots[(x, y)].to_js_tuple()} for x, y in self.special_spots]
+        return d
 
 def make_default_scrabble(players: List[Player]):
     BOARD_SIZE = 15
     def extend_over_quandrants(spots):
+        # appending to a dict while iterating is an error
+        spots_c = dict()
         for q in range(0, 4):
             for x, y in spots:
                 r = BOARD_SIZE - 1 - x if q % 2 != 0 else x
                 c = BOARD_SIZE - 1 - y if q >= 2 else y
-                spots[(r, c)] = spots[(x, y)]
+                spots_c[(r, c)] = spots[(x, y)]
+        return spots_c
 
     SPECIAL_SPOTS = extend_over_quandrants({
         (0, 0): BoardCell.TRIPLE_WORD,

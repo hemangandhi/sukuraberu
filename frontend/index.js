@@ -6,20 +6,29 @@ function logEvent(evt_str) {
     log.appendChild(evt);
 }
 
-function listPlayers(players_msg){
+function listPlayers(hand_elt, my_name, players_msg){
     var players = players_msg.players;
     var players_elt = document.getElementById('players');
     players_elt.innerHTML = '';
+    var im_in_game = false;
     for(var i = 0; i < players.length; i++) {
 	var player_li = document.createElement('li');
 	player_li.innerText = players[i].name + '(' + players[i].score + ')';
 	players_elt.appendChild(player_li);
+
+	if (players[i].name === my_name) {
+	    im_in_game = true;
+	    for (var j = 0; j < players[i].hand.length; j++) {
+		var koma = players[i].hand[j];
+		hand_elt.addKoma(new Koma(koma.face, koma.score, KomaState.MOCHI, false, koma.modifications));
+	    }
+	}
     }
-    logEvent('Updated players list');
+    logEvent('Updated players list' + ((im_in_game) ? '': '. Enter a name and click "join game" to join.'));
 }
 
-function updateGame(game_data) {
-    var game = JSON.parse(game_data);
+function updateGame(hand_elt, my_name, game_data) {
+    listPlayers(hand_elt, my_name, game_data);
 };
 
 function sendSocketData(ws, type, msg) {
@@ -29,25 +38,41 @@ function sendSocketData(ws, type, msg) {
 document.addEventListener("DOMContentLoaded", function(){
 
     var ws = new WebSocket("ws://" + window.location.host + "/ws");
+    var my_name = "";
+    var in_game = false;
+    var join_button = document.getElementById("join-game");
+
+    var hand_elt = document.getElementById('my-tiles');
+    var hand_container = new KomaContainer(hand_elt, 7, KomaState.MOCHI);
+
     ws.onmessage = function(event) {
 	console.log(event);
 	var data = JSON.parse(event.data);
 	var handlers = {};
-	handlers["error"] = function(err) { logEvent("Error: " + err); },
-	handlers["player-list"] = listPlayers,
-	handlers["game-state"] = updateGame
+	handlers["error"] = function(err) { logEvent("Error: " + err); };
+	handlers["player-list"] = function(l) { listPlayers(hand_container, my_name, l); }
+	handlers["game-state"] = function(g) {
+	    // In case somebody else started the game.
+	    in_game = true;
+	    join_button.value = "Commit move";
+	    updateGame(hand_container, my_name, g);
+	};
 	handlers[data.type](data.payload);
     }
 
-    var myName = "";
-    document.getElementById("join-game").addEventListener('click', function(ce) {
-	if (myName === "") {
+    join_button.addEventListener('click', function(ce) {
+	if (my_name === "") {
 	    var input = document.getElementById('name');
 	    input.disabled = true;
-	    myName = input.value;
-	    sendSocketData(ws, 'join', {'name': myName});
+	    my_name = input.value;
+	    sendSocketData(ws, 'join', {'name': my_name});
+	    join_button.value = "Start game!";
+	} else if (!in_game) {
+	    in_game = true;
+	    join_button.value = "Commit move";
+	    sendSocketData(ws, 'start-game', true);
 	} else {
-	    // commit move
+	    // TODO: commit move
 	}
     });
 
@@ -57,9 +82,4 @@ document.addEventListener("DOMContentLoaded", function(){
 	cells.push(new BoardSquare(sq_tag, ...sq_info));
     });
 
-    var hand_elt = document.getElementById('my-tiles');
-    var hand_container = new KomaContainer(hand_elt, 7, KomaState.MOCHI);
-    for(var i = 0; i < 7; i++) {
-	hand_container.addKoma(new Koma(i, i, KomaState.MOCHI, false));
-    }
 });
