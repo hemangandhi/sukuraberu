@@ -117,35 +117,37 @@ class Game:
                 return False, "Tile {} not played on a corresponding blank slot".format(tile)
         return True, ''
 
-    def play_turn(self, word: Word):
+    def play_turn(self, words: List[Word]):
         played_tiles = []
         valid_p, err_msg = Game.validate_turn(self.players[self.turn].hand, word, self.board, played_tiles)
         if not valid_p:
             raise ValueError(err_msg)
         self.words.append(word)
 
-        score = 0
-        multiplier = 1
-        for tile in word.tiles:
-            board[row][col] = tile
-            if word.is_vertical:
-                row += 1
-            else:
-                col += 1
-            cell = special_spots.get((row, col), BoardCell.DEFAULT)
-            score += tile.score * cell.score_letter()
-            multiplier *= cell.score_word()
-            if cell != BoardCell.DEFAULT:
-                del special_spots[(row, col)]
-        score *= multiplier
-        self.players[self.turn].score += score
+        for word in words:
+            score = 0
+            multiplier = 1
+            for tile in word.tiles:
+                board[row][col] = tile
+                if word.is_vertical:
+                    row += 1
+                else:
+                    col += 1
+                cell = special_spots.get((row, col), BoardCell.DEFAULT)
+                score += tile.score * cell.score_letter()
+                multiplier *= cell.score_word()
+                if cell != BoardCell.DEFAULT:
+                    del special_spots[(row, col)]
+            score *= multiplier
+            self.players[self.turn].score += score
 
-        for tile in word.tiles:
-            try:
-                idx = self.players[self.turn].hand.index(tile)
-                del self.players[self.turn].hand[idx]
-            except ValueError:
-                continue
+        for word in words:
+            for tile in word.tiles:
+                try:
+                    idx = self.players[self.turn].hand.index(tile)
+                    del self.players[self.turn].hand[idx]
+                except ValueError:
+                    continue
         self.deal_tiles(self.players[self.turn])
         self.turn += 1
         self.turn %= len(self.players)
