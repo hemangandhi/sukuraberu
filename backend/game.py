@@ -36,7 +36,7 @@ class BoardCell(Enum):
 
 @dataclass(eq = True)
 class Tile:
-    face: str
+    face: str # Exclude from == for blank tile handling from the JS side.
     modifications: str
     score: int
     blank_tile_modification: Optional[str]
@@ -119,30 +119,38 @@ class Game:
 
     def play_turn(self, words: List[Word]):
         played_tiles = []
-        valid_p, err_msg = Game.validate_turn(self.players[self.turn].hand, word, self.board, played_tiles)
-        if not valid_p:
-            raise ValueError(err_msg)
-        self.words.append(word)
 
         for word in words:
+            valid_p, err_msg = Game.validate_turn(self.players[self.turn].hand, word, self.board, played_tiles)
+            row, col = word.first_character_point
+            if not valid_p:
+                raise ValueError(err_msg)
+            self.words.append(word)
+
             score = 0
             multiplier = 1
             for tile in word.tiles:
                 board[row][col] = tile
+                cell = special_spots.get((row, col), BoardCell.DEFAULT)
+                score += tile.score * cell.score_letter()
+                multiplier *= cell.score_word()
                 if word.is_vertical:
                     row += 1
                 else:
                     col += 1
-                cell = special_spots.get((row, col), BoardCell.DEFAULT)
-                score += tile.score * cell.score_letter()
-                multiplier *= cell.score_word()
-                if cell != BoardCell.DEFAULT:
-                    del special_spots[(row, col)]
             score *= multiplier
             self.players[self.turn].score += score
 
         for word in words:
-            for tile in word.tiles:
+            srow, scol = word.first_character_point
+            for offset, tile in enumerate(word.tiles):
+                if word.is_vertical:
+                    row, col = srow + offset, col
+                else:
+                    row, col = srow, col + offset
+                cell = special_spots.get((row, col), BoardCell.DEFAULT)
+                if cell != BoardCell.DEFAULT:
+                    del special_spots[(row, col)]
                 try:
                     idx = self.players[self.turn].hand.index(tile)
                     del self.players[self.turn].hand[idx]

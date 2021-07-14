@@ -10,7 +10,7 @@ function logEvent(evt_str) {
 }
 
 function komaOfPyTile(py_tile, state, is_public) {
-    return new Koma(py_tile.face, py_tile.score, state, is_public, py_tile.modifications);
+    return new Koma((py_tile.face == '' && py_tile.blank_tile_modification) ? py_tile.blank_tile_modification : py_tile.face, py_tile.score, state, is_public, py_tile.modifications);
 }
 
 function listPlayers(hand_elt, my_name, players_msg){
@@ -41,7 +41,7 @@ function updateGame(hand_elt, my_name, cells, turn_button, game_data) {
 	addStrToHtmlList('word-list', word.characters);
         var point = word.first_character_point;
 	for(var j = 0; j < word.tiles.length; j++, point[(word.is_vertical)? 1: 0]++) {
-	    var cell = cells.get(point);
+	    var cell = cells.get(hashPt(point));
 	    // Assumption: the python is right. So we don't have to care about this
 	    // overlap/tile re-use.
 	    if (cell.koma_list.length == 0) {
@@ -78,7 +78,7 @@ document.addEventListener("DOMContentLoaded", function(){
     var cells = new Map();
     installBoard(document.getElementById('board'), function(sq_tag, sq_info) {
 	sq_tag.id = 'cell-' + sq_info[0] + '-' + sq_info[1];
-	cells.set([sq_info[0], sq_info[1]], new BoardSquare(sq_tag, ...sq_info));
+	cells.set(hashPt([sq_info[0], sq_info[1]]), new BoardSquare(sq_tag, ...sq_info));
     });
 
     var turn_commiter = new TurnCommitter(function(t, p) { sendSocketData(ws, t, p);}, "tile-modifiers")

@@ -1,5 +1,18 @@
 var BOARD_SIZE = 15;
 
+// Because, of all things, JS hashmaps are strict about equality, so a hashmap of arrays is a bad idea.
+// And this joy of a programming language totally lets me have my own == and hash, right?
+function hashPt(pt) {
+    // *sigh* yes, I could make out of bounds call to deliberately fail the hashmap lookup.
+    if (pt[0] < 0 || pt[0] >= BOARD_SIZE || pt[1] < 0 || pt[1] >= BOARD_SIZE) return -1;
+    return pt[0] * BOARD_SIZE + pt[1];
+}
+
+// OK, I even did this. (You know I'm distraught when I'm inverting a "hash function.")
+function unhashPt(h) {
+    return [Math.floor(h/BOARD_SIZE), h % BOARD_SIZE];
+}
+
 function extendOverQuandrants(top_left_squares) {
     var squares = [];
     for(var q = 0; q < 4; q++) {

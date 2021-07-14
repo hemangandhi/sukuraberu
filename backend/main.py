@@ -46,9 +46,12 @@ def handle_turn(turn_data):
     if game is None:
         return 'error', 'game has not started'
     try:
-        tile_list = [Tile(**t) for t in turn_data['tiles']]
-        word = Word(turn_data['characters'], tile_list, tuple(turn_data['start_point']), turn_data['is_vertical'])
-        game.play_turn(word)
+        words = []
+        for js_word in turn_data:
+            tile_list = [Tile(**t) for t in js_word['tiles']]
+            word = Word(js_word['characters'], tile_list, tuple(js_word['first_character_point']), js_word['is_vertical'])
+            words.append(word)
+        game.play_turn(words)
     except TypeError:
         return 'error', 'invalid data'
     except ValueError as ve:

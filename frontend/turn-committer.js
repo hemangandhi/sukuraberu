@@ -26,7 +26,7 @@ function runToWordEnd(point, cells, direction) {
     var cell;
     var res = [];
     for(var cp = vecAdd(point, direction);
-	(cell = cells.get(cp)) !== undefined && cell.koma_list.length > 0;
+	(cell = cells.get(hashPt(cp))) !== undefined && cell.koma_list.length > 0;
 	cp = vecAdd(cp, direction)) {
 	res.push({point: cp, koma: cell.koma_list[0]});
     }
@@ -46,7 +46,7 @@ function neighboursOfPoint(point, cells, disallowed_directions) {
     var nbd = [];
     for(var i = 0; i < directions.length; i++) {
 	var new_pt = vecAdd(point, directions[i]);
-	var cell = cells.get(new_pt)
+	var cell = cells.get(hashPt(new_pt))
 	if (cell !== undefined && cell.koma_list.length > 0) {
 	    nbd.push({point: new_pt, direction: directions[i], cell: cell.koma_list[0]});
 	}
@@ -72,9 +72,9 @@ function validateAndGetBaseWord(word_cells, cells) {
 	word_cells.splice(0, 0, n[0]);
     }
 
-    var is_vertical = word_cells[0].point[0] == word_cells[1].point[0];
+    var is_vertical = word_cells[0].point[0] !== word_cells[1].point[0];
     if (!word_cells.every(function(c) {
-	return word_cells[0].point[(is_vertical)?0:1] == c.point[(is_vertical)?0:1];
+	return word_cells[0].point[(!is_vertical)?0:1] == c.point[(!is_vertical)?0:1];
     })) {
 	return 'they are not in one row or column.';
     }
@@ -84,7 +84,7 @@ function validateAndGetBaseWord(word_cells, cells) {
 	var r = word_cells[i].point[(is_vertical)?1:0];
 	for (var j = l + 1; j < r; j++) {
 	    var p = (is_vertical)?[word_cells[0].point[0], j]:[j, word_cells[0].point[1]];
-	    var cp = cells.get(p);
+	    var cp = cells.get(hashPt(p));
 	    if (cp.koma_list.length == 0) {
 		return 'they do not connect to a piece on the board.';
 	    }
@@ -114,19 +114,20 @@ function validateAndGetBaseWord(word_cells, cells) {
 //
 // Invariant: the "main word" is the last one.
 function augmentWordList(cells, word_cells, total_words) {
-    var is_vertical = word_cells[0].point[0] === word_cells[1].point[0];
+    var is_vertical = word_cells[0].point[0] !== word_cells[1].point[0];
     var ignore_directions = (is_vertical)?[[0, 1], [0, -1]]:[[1, 0], [-1, 0]];
+    console.log(ignore_directions);
     var main_word = [];
     for (var i = 0; i < word_cells.length; i++) {
 	if (word_cells[i].koma.state !== KomaState.TAMESHI) {
-	    main_word.push({character: word_cells[i].koma.face, cell_idx: -1, point: word_cells[i].point});
+	    main_word.push({koma: word_cells[i].koma.label, cell_idx: -1, point: word_cells[i].point});
 	    continue;
 	}
-	main_word.push({character: word_cells[i].koma.face, cell_idx: i, point: word_cells[i].point});
+	main_word.push({koma: word_cells[i].koma.label, cell_idx: i, point: word_cells[i].point});
 	// This will have at most 2 values.
 	var n = neighboursOfPoint(word_cells[i].point, cells, ignore_directions);
 	if (n.length === 0) continue;
-	var prefix, suffix;
+	var prefix = [], suffix = [];
 	if (isPositiveDirection(n[0].direction)) {
 	    suffix = runToWordEnd(word_cells[i].point, cells, n[0].direction);
 	    if (n.length > 1) {
@@ -138,10 +139,11 @@ function augmentWordList(cells, word_cells, total_words) {
 		suffix = runToWordEnd(word_cells[i].point, cells, n[1].direction);
 	    }
 	}
+	if (prefix.length == 0 && suffix.length == 0) continue;
 	total_words.push(
-	    prefix.map(function(p) { return {koma: p.koma, cell_idx: -1, point: p.point};}) +
-		[{character: word_cells[i].koma.face, cell_idx: i, point: word_cells[i].point}] +
-		suffix.map(function(p) { return {koma: p.koma, cell_idx: -1, point: p.point};}));
+	    prefix.map(function(p) { return {koma: p.koma, cell_idx: -1, point: p.point};})
+		.concat([{koma: word_cells[i].koma, cell_idx: i, point: word_cells[i].point}])
+		.concat(suffix.map(function(p) { return {koma: p.koma, cell_idx: -1, point: p.point};})));
     }
     total_words.push(main_word);
 }
@@ -151,23 +153,23 @@ function yeetModForm(elt, commit_finisher, word_cells, played_words) {
     main_word_span.id = 'main-word-span';
     var main_word_ol = document.createElement('ol');
     for(var i = 0; i < word_cells.length; i++) {
-	main_word_span.innerText += word_cells[i].koma.face;
+	main_word_span.innerText += word_cells[i].koma.label;
 	var li = document.createElement('li');
 	if (word_cells[i].koma.mods.length == 1 ||
-	    (word_cells[i].koma.face == '' && word_cells[i].koma.state !== KomaState.UTTA)) {
-	    li.innerText = word_cells[i].koma.face + ' (cannot be changed)';
+	    (word_cells[i].koma.label == '' && word_cells[i].koma.state !== KomaState.UTTA)) {
+	    li.innerText = word_cells[i].koma.label + ' (cannot be changed)';
 	    main_word_ol.appendChild(li);
 	    continue;
 	}
 
 	var main_selector = document.createElement('select');
 	var curr_selector = document.createElement('select');
-	if (word_cells[i].koma.face == '' && word_cells[i].koma.state !== KomaState.UTTA) {
+	if (word_cells[i].koma.label == '' && word_cells[i].koma.state !== KomaState.UTTA) {
 	    main_selector.id = 'main-word-blank-' + i;
 	    curr_selector.id = 'curr-word-blank-' + i;
 	}
-	main_selector.value = word_cells[i].koma.face;
-	curr_selector.value = word_cells[i].koma.face;
+	main_selector.value = word_cells[i].koma.label;
+	curr_selector.value = word_cells[i].koma.label;
 	for (var mod_i = 0; mod_i < word_cells[i].koma.mods.length; mod_i++) {
 	    var opt = document.createElement('option');
 	    opt.value = word_cells[i].koma.mods.charAt(mod_i);
@@ -188,12 +190,13 @@ function yeetModForm(elt, commit_finisher, word_cells, played_words) {
 	    var val = e.target.value;
 	    var wd_span = document.getElementById('main-word-span');
 	    wd_span.innerText = replaceStrCharAt(wd_span.innerText, val, perma_i);
-	    if (word_cells[perma_i].koma.face === '' && j < played_words.length - 1) {
+	    if (word_cells[perma_i].koma.label === '' && j < played_words.length - 1) {
 		document.getElementById('curr-word-blank-' + perma_i).value = val;
 		var owd_span = document.getElementById('word-at-' + perma_i);
 		owd_span.innerText = replaceStrCharAt(owd_span.innerText, val, k);
 	    }
 	});
+	main_word_ol.appendChild(main_selector);
 	if (word_cells[i].koma.state === KomaState.UTTA) continue;
 
 	for(j = 0; j < played_words.length - 1; j++) {
@@ -209,7 +212,7 @@ function yeetModForm(elt, commit_finisher, word_cells, played_words) {
 	    var val = e.target.value;
 	    var wd_span = document.getElementById('word-at-' + perma_i);
 	    wd_span.innerText = replaceStrCharAt(wd_span.innerText, val, k);
-	    if (word_cells[perma_i].koma.face === '' && j < played_words.length - 1) {
+	    if (word_cells[perma_i].koma.label === '' && j < played_words.length - 1) {
 		document.getElementById('main-word-blank-' + perma_i).value = val;
 		var owd_span = document.getElementById('word-at-' + perma_i);
 		owd_span.innerText = replaceStrCharAt(owd_span.innerText, val, k);
@@ -219,10 +222,10 @@ function yeetModForm(elt, commit_finisher, word_cells, played_words) {
 	curr_word_span.id = 'word-at-' + i;
 	var curr_word_ol = document.createElement('ol');
 	for (var k2 = 0; k2 < played_words[j].length; k2++) {
-	    curr_word_span.innerText += played_words[j][k2].koma.face;
+	    curr_word_span.innerText += played_words[j][k2].koma.label;
 	    if (played_words[j][k2].cell_idx < 0) {
 		var li = document.createElement('li');
-		li.innerText = played_words[j][k2].koma.face + ' (cannot be changed)';
+		li.innerText = played_words[j][k2].koma.label + ' (cannot be changed)';
 		curr_word_ol.appendChild(li);
 	    } else {
 		curr_word_ol.appendChild(curr_selector);
@@ -245,21 +248,24 @@ function yeetModForm(elt, commit_finisher, word_cells, played_words) {
 	var main_word = document.getElementById('main-word-span').innerText;
 	var words = [{str: main_word, cells: word_cells}];
 	// j for consistency with the above disaster
+	console.log(played_words);
 	for (var j = 0; j < played_words.length - 1; j++) {
-	    var i = played_words[j].filter(function (w) { return w.idx > 0 })[0].idx;
+	    var i = played_words[j].filter(function (w) { return w.cell_idx >= 0 })[0].cell_idx;
 	    var word = document.getElementById('word-at-' + i);
 	    words.push({str: word, cells: played_words[j]});
 	}
 	commit_finisher(words);
     });
+    elt.appendChild(button);
 }
 
-function pyTilesOfWordCells(cells) {
-    return cells.map(function(cell) {
+function pyTilesOfWordCells(cells, word) {
+    return cells.map(function(cell, idx) {
 	return {
-	    face: cell.koma.face,
+	    face: cell.koma.label,
 	    score: cell.koma.score,
-	    modifications: cell.koma.mods
+	    modifications: cell.koma.mods,
+	    blank_tile_modification: (cell.koma.label == '') ? word.charAt(idx) : null
 	};
     });
 }
@@ -272,7 +278,8 @@ function TurnCommitter(ws_msg_sender, tile_mod_form_elt_id) {
 	mod_form_elt.innerHTML = '';
 	in_commit = true;
 	var word_cells = [];
-	for(let [point, cell] of cells) {
+	for(let [hash, cell] of cells) {
+	    var point = unhashPt(hash);
 	    if (cell.koma_list.length > 0 && cell.koma_list[0].state == KomaState.TAMESHI) {
 		word_cells.push({point: point, koma: cell.koma_list[0]});
 	    }
@@ -289,10 +296,10 @@ function TurnCommitter(ws_msg_sender, tile_mod_form_elt_id) {
 	yeetModForm(mod_form_elt, function(wds) {
 	    ws_msg_sender('turn', wds.map(function(wd) {
 		return {
-		    characters: wd.str.join(''),
+		    characters: wd.str,
 		    tiles: pyTilesOfWordCells(wd.cells),
-		    first_character_point: wd.cells[0],
-		    is_vertical: (wd.cells[0].point[0] == wd.cells[1].point[0])
+		    first_character_point: wd.cells[0].point,
+		    is_vertical: (wd.cells[0].point[0] !== wd.cells[1].point[0])
 		};
 	    }));
 	    in_commit = false;
