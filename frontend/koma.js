@@ -53,7 +53,10 @@ function KomaContainer(hand_elt, nkoma_limit, for_koma_state) {
 	    evt.dataTransfer.dropEffect = "move";
 	    _this.n_koma--;
 	    for (var i = 0; i < _this.koma_list.length; i++) {
-		if (_this.koma_list[i] == koma) {
+		// Modifiers are close enough to a unique identifier for
+		// a type of koma. If a player has multiple, we don't have to
+		// worry about which one we removed.
+		if (_this.koma_list[i].mods == koma.mods) {
 		    _this.koma_list.splice(i, 1);
 		    break;
 		}
@@ -74,6 +77,7 @@ function KomaContainer(hand_elt, nkoma_limit, for_koma_state) {
 	    // It casuses a slight inconsistency between the list in the container and the actual elements, but this even should always
 	    // fire and make everything eventually consistent.
 	    hand_elt.removeChild(koma_elt);
+	    _this.koma_elt = null;
 	});
     }
 
@@ -88,26 +92,29 @@ function KomaContainer(hand_elt, nkoma_limit, for_koma_state) {
     }
 
     this.addKoma = function(koma) {
-	if (this.n_koma == this.limit || !validKomaState(koma)) return;
+	if (this.n_koma == this.limit || !validKomaState(koma)) return false;
 	this.n_koma++;
-	var koma_elt = document.createElement('div');
-	koma_elt.innerText = koma.label + '(' + koma.score + ')';
-	koma_elt.classList.add('koma-tag');
+	this.koma_elt = document.createElement('div');
+	this.koma_elt.innerText = koma.label + '(' + koma.score + ')';
+	this.koma_elt.classList.add('koma-tag');
 	// Expectation: we shouldn't see a kakushi koma here.
 	// 17 = KomaState.KAKUSHI | Komastate.UTTA
 	if ((for_koma_state & 17) === 0) {
-	    makeKomaDraggable(koma, koma_elt);
+	    makeKomaDraggable(koma, this.koma_elt);
 	}
-	hand_elt.appendChild(koma_elt);
+	hand_elt.appendChild(this.koma_elt);
 	this.koma_list.push(koma);
+	return true;
     }
 
     hand_elt.addEventListener('drop', function(evt) {
 	evt.preventDefault();
 	var koma = JSON.parse(evt.dataTransfer.getData('text'));
 	koma.state = for_koma_state;
-	_this.addKoma(koma);
-	currently_dragged = null;
+	if (_this.addKoma(koma)) {
+	    if (current_drop) current_drop.style.border = "solid grey";
+	    currently_dragged = null;
+	}
     });
 
     hand_elt.addEventListener('dragenter', function(evt) {

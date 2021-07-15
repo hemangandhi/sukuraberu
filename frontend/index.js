@@ -25,7 +25,7 @@ function listPlayers(hand_elt, my_name, players_msg){
 
 	if (players[i].name === my_name) {
 	    im_in_game = true;
-	    for (var j = 0; j < players[i].hand.length; j++) {
+	    for (var j = hand_elt.koma_list.length; j < players[i].hand.length; j++) {
 		var koma = players[i].hand[j];
 		hand_elt.addKoma(komaOfPyTile(players[i].hand[j], KomaState.MOCHI, false));
 	    }
@@ -40,12 +40,16 @@ function updateGame(hand_elt, my_name, cells, turn_button, game_data) {
 	var word = game_data.words[i]
 	addStrToHtmlList('word-list', word.characters);
         var point = word.first_character_point;
-	for(var j = 0; j < word.tiles.length; j++, point[(word.is_vertical)? 1: 0]++) {
+	for(var j = 0; j < word.tiles.length; j++, point[(word.is_vertical)? 0: 1]++) {
 	    var cell = cells.get(hashPt(point));
-	    // Assumption: the python is right. So we don't have to care about this
+	    // Assumption: it's alright. So we don't have to care about this
 	    // overlap/tile re-use.
 	    if (cell.koma_list.length == 0) {
 		cell.addKoma(komaOfPyTile(word.tiles[j], KomaState.UTTA, true));
+	    } else {
+		cell.koma_list[0].state = KomaState.UTTA;
+		cell.koma_list[0].is_public = true;
+		cell.koma_elt.setAttribute('draggable', false);
 	    }
 	}
     }

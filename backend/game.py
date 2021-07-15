@@ -36,7 +36,7 @@ class BoardCell(Enum):
 
 @dataclass(eq = True)
 class Tile:
-    face: str # Exclude from == for blank tile handling from the JS side.
+    face: str = field(compare=False) # Exclude from == for blank tile handling from the JS side.
     modifications: str
     score: int
     blank_tile_modification: Optional[str]
@@ -113,7 +113,7 @@ class Game:
                 if tile not in hand:
                     return False, "Player does not have the tile to play {}".format(tile)
                 played_tiles.append(tile)
-            if board_tile != tile:
+            elif board_tile != tile:
                 return False, "Tile {} not played on a corresponding blank slot".format(tile)
         return True, ''
 
@@ -130,8 +130,8 @@ class Game:
             score = 0
             multiplier = 1
             for tile in word.tiles:
-                board[row][col] = tile
-                cell = special_spots.get((row, col), BoardCell.DEFAULT)
+                self.board[row][col] = tile
+                cell = self.special_spots.get((row, col), BoardCell.DEFAULT)
                 score += tile.score * cell.score_letter()
                 multiplier *= cell.score_word()
                 if word.is_vertical:
@@ -148,9 +148,9 @@ class Game:
                     row, col = srow + offset, col
                 else:
                     row, col = srow, col + offset
-                cell = special_spots.get((row, col), BoardCell.DEFAULT)
+                cell = self.special_spots.get((row, col), BoardCell.DEFAULT)
                 if cell != BoardCell.DEFAULT:
-                    del special_spots[(row, col)]
+                    del self.special_spots[(row, col)]
                 try:
                     idx = self.players[self.turn].hand.index(tile)
                     del self.players[self.turn].hand[idx]

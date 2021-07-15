@@ -48,10 +48,44 @@ function neighboursOfPoint(point, cells, disallowed_directions) {
 	var new_pt = vecAdd(point, directions[i]);
 	var cell = cells.get(hashPt(new_pt))
 	if (cell !== undefined && cell.koma_list.length > 0) {
-	    nbd.push({point: new_pt, direction: directions[i], cell: cell.koma_list[0]});
+	    nbd.push({point: new_pt, direction: directions[i], koma: cell.koma_list[0]});
 	}
     }
     return nbd;
+}
+
+function checkConnectednessOrFirstTurn(word_cells, cells) {
+    var first_turn = true;
+    for(let [hash, cell] of cells) {
+	if (cell.koma_list.length > 0 && cell.koma_list[0].state !== KomaState.TAMESHI) {
+	    first_turn = false;
+	    break;
+	}
+    }
+
+    if (first_turn) {
+	if (!word_cells.some(function(c) {
+	    var m = Math.floor(BOARD_SIZE/2);
+	    return c.point[0] == m  && c.point[1] == m;
+	})) {
+	    return 'first move must use the center spot of the board';
+	}
+	return false;
+    }
+
+    var is_vertical = word_cells[0].point[0] !== word_cells[1].point[0];
+    var ignore_directions = (is_vertical)?[[0, 1], [0, -1]]:[[1, 0], [-1, 0]];
+    if (!word_cells.some(function(c) {
+	// Technically:
+	//
+	// BAT
+	//   ORE   <- ORE is valid, but word_cells wouldn't have the UTTA koma "T"
+	//            that makes this valid, so we check the perpendicular neighboursOfPoint.
+	return c.koma.state === KomaState.UTTA || neighboursOfPoint(c.point, cells, ignore_directions).length > 0;
+    })) {
+	return 'played tiles must cross previously played tiles';
+    }
+    return false;
 }
 
 function validateAndGetBaseWord(word_cells, cells) {
@@ -69,7 +103,11 @@ function validateAndGetBaseWord(word_cells, cells) {
     if (word_cells.length == 1) {
 	var n = neighboursOfPoint(word_cells[0].point, cells, []);
 	if (n.length == 0) return 'cannot play one letter words';
-	word_cells.splice(0, 0, n[0]);
+	if (isPositiveDirection(n[0].direction)) {
+	    word_cells.push(n[0]);
+	} else {
+	    word_cells.splice(0, 0, n[0]);
+	}
     }
 
     var is_vertical = word_cells[0].point[0] !== word_cells[1].point[0];
@@ -80,27 +118,33 @@ function validateAndGetBaseWord(word_cells, cells) {
     }
 
     for(var i = 1; i < word_cells.length; i++) {
-	var l = word_cells[i - 1].point[(is_vertical)?1:0];
-	var r = word_cells[i].point[(is_vertical)?1:0];
+	var l = word_cells[i - 1].point[(!is_vertical)?1:0];
+	var r = word_cells[i].point[(!is_vertical)?1:0];
 	for (var j = l + 1; j < r; j++) {
-	    var p = (is_vertical)?[word_cells[0].point[0], j]:[j, word_cells[0].point[1]];
+	    var p = (!is_vertical)?[word_cells[0].point[0], j]:[j, word_cells[0].point[1]];
 	    var cp = cells.get(hashPt(p));
 	    if (cp.koma_list.length == 0) {
 		return 'they do not connect to a piece on the board.';
 	    }
 	    // https://stackoverflow.com/a/586189
-	    word_cells.splice(i - 1, 0, {point: p, koma: cp.koma_list[0]});
+	    word_cells.splice(i, 0, {point: p, koma: cp.koma_list[0]});
 	    i++;
 	}
     }
 
     // Special case: the played tiles were a suffix
-    var prefix = runToWordEnd(word_cells[0].point, cells, (is_vertical)?[0, -1]:[-1, 0]);
+    var prefix = runToWordEnd(word_cells[0].point, cells, (!is_vertical)?[0, -1]:[-1, 0]);
     if (prefix.length > 0) {
 	// https://stackoverflow.com/a/27647636
 	Array.prototype.unshift.apply(word_cells, prefix);
     }
-    return false;
+    var suffix = runToWordEnd(word_cells[word_cells.length - 1].point, cells, (!is_vertical)?[0, 1]:[1, 0]);
+    for (var i = 0; i < suffix.length; i++) {
+	// Can't concat since we are relying on the reference.
+	word_cells.push(suffix[i]);
+    }
+
+    return checkConnectednessOrFirstTurn(word_cells, cells);
 }
 
 // Concept: turns are supposed to be played on a line, so the tiles played on this
@@ -116,7 +160,6 @@ function validateAndGetBaseWord(word_cells, cells) {
 function augmentWordList(cells, word_cells, total_words) {
     var is_vertical = word_cells[0].point[0] !== word_cells[1].point[0];
     var ignore_directions = (is_vertical)?[[0, 1], [0, -1]]:[[1, 0], [-1, 0]];
-    console.log(ignore_directions);
     var main_word = [];
     for (var i = 0; i < word_cells.length; i++) {
 	if (word_cells[i].koma.state !== KomaState.TAMESHI) {
@@ -153,88 +196,94 @@ function yeetModForm(elt, commit_finisher, word_cells, played_words) {
     main_word_span.id = 'main-word-span';
     var main_word_ol = document.createElement('ol');
     for(var i = 0; i < word_cells.length; i++) {
-	main_word_span.innerText += word_cells[i].koma.label;
-	var li = document.createElement('li');
-	if (word_cells[i].koma.mods.length == 1 ||
-	    (word_cells[i].koma.label == '' && word_cells[i].koma.state !== KomaState.UTTA)) {
-	    li.innerText = word_cells[i].koma.label + ' (cannot be changed)';
-	    main_word_ol.appendChild(li);
-	    continue;
-	}
-
-	var main_selector = document.createElement('select');
-	var curr_selector = document.createElement('select');
-	if (word_cells[i].koma.label == '' && word_cells[i].koma.state !== KomaState.UTTA) {
-	    main_selector.id = 'main-word-blank-' + i;
-	    curr_selector.id = 'curr-word-blank-' + i;
-	}
-	main_selector.value = word_cells[i].koma.label;
-	curr_selector.value = word_cells[i].koma.label;
-	for (var mod_i = 0; mod_i < word_cells[i].koma.mods.length; mod_i++) {
-	    var opt = document.createElement('option');
-	    opt.value = word_cells[i].koma.mods.charAt(mod_i);
-	    opt.innerText = word_cells[i].koma.mods.charAt(mod_i);
-	    // Deep copy -- get that text node too.
-	    main_selector.appendChild(opt.cloneNode(true));
-	    curr_selector.appendChild(opt);
-	}
-
-	// Haha closure go brr -- we can't refer to i directly inside event handlers since
-	// it'll likely be word_cells.length.
-	var perma_i = i;
-	// To swap the blank word in the appropriate spot. Also initialize j to a value that
-	// indicates that we've not found another word at perma_i (in case we exit the loop
-	// early).
-	var j = played_words.length - 1, k;
-	main_selector.addEventListener('change', function(e) {
-	    var val = e.target.value;
-	    var wd_span = document.getElementById('main-word-span');
-	    wd_span.innerText = replaceStrCharAt(wd_span.innerText, val, perma_i);
-	    if (word_cells[perma_i].koma.label === '' && j < played_words.length - 1) {
-		document.getElementById('curr-word-blank-' + perma_i).value = val;
-		var owd_span = document.getElementById('word-at-' + perma_i);
-		owd_span.innerText = replaceStrCharAt(owd_span.innerText, val, k);
+	// Help, I've fallen and I can't get up.
+	// I also need a scope. Please don't ask too many questions.
+	// "return" means the same thing as "continue" in this block. Sorry.
+	(function () {
+	    main_word_span.innerText += word_cells[i].koma.label;
+	    var li = document.createElement('li');
+	    if (word_cells[i].koma.mods.length == 1 ||
+		(word_cells[i].koma.label == '' && word_cells[i].koma.state !== KomaState.UTTA)) {
+		li.innerText = word_cells[i].koma.label + ' (cannot be changed)';
+		main_word_ol.appendChild(li);
+		return;
 	    }
-	});
-	main_word_ol.appendChild(main_selector);
-	if (word_cells[i].koma.state === KomaState.UTTA) continue;
 
-	for(j = 0; j < played_words.length - 1; j++) {
-	    for (k = 0; k < played_words[j].length; k++) {
-		if (played_words[j][k].cell_idx == i) {
-		    break;
+	    var main_selector = document.createElement('select');
+	    var curr_selector = document.createElement('select');
+	    if (word_cells[i].koma.label == '' && word_cells[i].koma.state !== KomaState.UTTA) {
+		main_selector.id = 'main-word-blank-' + i;
+		curr_selector.id = 'curr-word-blank-' + i;
+	    }
+	    main_selector.value = word_cells[i].koma.label;
+	    curr_selector.value = word_cells[i].koma.label;
+	    for (var mod_i = 0; mod_i < word_cells[i].koma.mods.length; mod_i++) {
+		var opt = document.createElement('option');
+		opt.value = word_cells[i].koma.mods.charAt(mod_i);
+		opt.innerText = word_cells[i].koma.mods.charAt(mod_i);
+		// Deep copy -- get that text node too.
+		main_selector.appendChild(opt.cloneNode(true));
+		curr_selector.appendChild(opt);
+	    }
+
+	    // Haha closure go brr -- we can't refer to i directly inside event handlers since
+	    // it'll likely be word_cells.length.
+	    var perma_i = i;
+	    // To swap the blank word in the appropriate spot. Also initialize j to a value that
+	    // indicates that we've not found another word at perma_i (in case we exit the loop
+	    // early).
+	    var j = played_words.length - 1, k;
+	    main_selector.addEventListener('change', function(e) {
+		var val = e.target.value;
+		console.log(perma_i);
+		var wd_span = document.getElementById('main-word-span');
+		wd_span.innerText = replaceStrCharAt(wd_span.innerText, val, perma_i);
+		if (word_cells[perma_i].koma.label === '' && j < played_words.length - 1) {
+		    document.getElementById('curr-word-blank-' + perma_i).value = val;
+		    var owd_span = document.getElementById('word-at-' + perma_i);
+		    owd_span.innerText = replaceStrCharAt(owd_span.innerText, val, k);
+		}
+	    });
+	    main_word_ol.appendChild(main_selector);
+	    if (word_cells[i].koma.state === KomaState.UTTA) return;
+
+	    for(j = 0; j < played_words.length - 1; j++) {
+		for (k = 0; k < played_words[j].length; k++) {
+		    if (played_words[j][k].cell_idx == i) {
+			break;
+		    }
 		}
 	    }
-	}
-	if (j == played_words.length - 1) continue;
+	    if (j == played_words.length - 1) return;
 
-	curr_selector.addEventListener('change', function(e) {
-	    var val = e.target.value;
-	    var wd_span = document.getElementById('word-at-' + perma_i);
-	    wd_span.innerText = replaceStrCharAt(wd_span.innerText, val, k);
-	    if (word_cells[perma_i].koma.label === '' && j < played_words.length - 1) {
-		document.getElementById('main-word-blank-' + perma_i).value = val;
-		var owd_span = document.getElementById('word-at-' + perma_i);
-		owd_span.innerText = replaceStrCharAt(owd_span.innerText, val, k);
+	    curr_selector.addEventListener('change', function(e) {
+		var val = e.target.value;
+		var wd_span = document.getElementById('word-at-' + perma_i);
+		wd_span.innerText = replaceStrCharAt(wd_span.innerText, val, k);
+		if (word_cells[perma_i].koma.label === '' && j < played_words.length - 1) {
+		    document.getElementById('main-word-blank-' + perma_i).value = val;
+		    var owd_span = document.getElementById('word-at-' + perma_i);
+		    owd_span.innerText = replaceStrCharAt(owd_span.innerText, val, k);
+		}
+	    });
+	    var curr_word_span = document.createElement('span');
+	    curr_word_span.id = 'word-at-' + i;
+	    var curr_word_ol = document.createElement('ol');
+	    for (var k2 = 0; k2 < played_words[j].length; k2++) {
+		curr_word_span.innerText += played_words[j][k2].koma.label;
+		if (played_words[j][k2].cell_idx < 0) {
+		    var li = document.createElement('li');
+		    li.innerText = played_words[j][k2].koma.label + ' (cannot be changed)';
+		    curr_word_ol.appendChild(li);
+		} else {
+		    curr_word_ol.appendChild(curr_selector);
+		}
 	    }
-	});
-	var curr_word_span = document.createElement('span');
-	curr_word_span.id = 'word-at-' + i;
-	var curr_word_ol = document.createElement('ol');
-	for (var k2 = 0; k2 < played_words[j].length; k2++) {
-	    curr_word_span.innerText += played_words[j][k2].koma.label;
-	    if (played_words[j][k2].cell_idx < 0) {
-		var li = document.createElement('li');
-		li.innerText = played_words[j][k2].koma.label + ' (cannot be changed)';
-		curr_word_ol.appendChild(li);
-	    } else {
-		curr_word_ol.appendChild(curr_selector);
-	    }
-	}
-	var curr_word_div = document.createElement('div');
-	curr_word_div.appendChild(curr_word_span);
-	curr_word_div.appendChild(curr_word_ol);
-	elt.appendChild(curr_word_div);
+	    var curr_word_div = document.createElement('div');
+	    curr_word_div.appendChild(curr_word_span);
+	    curr_word_div.appendChild(curr_word_ol);
+	    elt.appendChild(curr_word_div);
+	})();
     } // for(var i... < word_cells.length...
     var main_word_div = document.createElement('div');
     main_word_div.appendChild(main_word_span);
@@ -248,7 +297,6 @@ function yeetModForm(elt, commit_finisher, word_cells, played_words) {
 	var main_word = document.getElementById('main-word-span').innerText;
 	var words = [{str: main_word, cells: word_cells}];
 	// j for consistency with the above disaster
-	console.log(played_words);
 	for (var j = 0; j < played_words.length - 1; j++) {
 	    var i = played_words[j].filter(function (w) { return w.cell_idx >= 0 })[0].cell_idx;
 	    var word = document.getElementById('word-at-' + i);
