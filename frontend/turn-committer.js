@@ -166,7 +166,7 @@ function augmentWordList(cells, word_cells, total_words) {
 	    main_word.push({koma: word_cells[i].koma.label, cell_idx: -1, point: word_cells[i].point});
 	    continue;
 	}
-	main_word.push({koma: word_cells[i].koma.label, cell_idx: i, point: word_cells[i].point});
+	main_word.push({koma: word_cells[i].koma, cell_idx: i, point: word_cells[i].point});
 	// This will have at most 2 values.
 	var n = neighboursOfPoint(word_cells[i].point, cells, ignore_directions);
 	if (n.length === 0) continue;
@@ -249,10 +249,12 @@ function yeetModForm(elt, commit_finisher, word_cells, played_words) {
 
 	    for(j = 0; j < played_words.length - 1; j++) {
 		for (k = 0; k < played_words[j].length; k++) {
+		    console.log(played_words[j][k]);
 		    if (played_words[j][k].cell_idx == i) {
 			break;
 		    }
 		}
+		if (k < played_words[j].length) break;
 	    }
 	    if (j == played_words.length - 1) return;
 
@@ -299,9 +301,10 @@ function yeetModForm(elt, commit_finisher, word_cells, played_words) {
 	// j for consistency with the above disaster
 	for (var j = 0; j < played_words.length - 1; j++) {
 	    var i = played_words[j].filter(function (w) { return w.cell_idx >= 0 })[0].cell_idx;
-	    var word = document.getElementById('word-at-' + i);
+	    var word = document.getElementById('word-at-' + i).innerText;
 	    words.push({str: word, cells: played_words[j]});
 	}
+	console.log(words);
 	commit_finisher(words);
     });
     elt.appendChild(button);
