@@ -17,7 +17,7 @@ function vecAdd(l, r) {
 function vecScale(v, sc) {
     return [v[0] * sc, v[1] * sc];
 }
-
+pp
 function isPositiveDirection(d_vec) {
     return d_vec[0] + d_vec[1] > 0;
 }
@@ -169,6 +169,9 @@ function augmentWordList(cells, word_cells, total_words) {
 	main_word.push({koma: word_cells[i].koma, cell_idx: i, point: word_cells[i].point});
 	// This will have at most 2 values.
 	var n = neighboursOfPoint(word_cells[i].point, cells, ignore_directions);
+	console.log(word_cells[i]);
+	console.log(i + 'th neighbours:');
+	console.log(n);
 	if (n.length === 0) continue;
 	var prefix = [], suffix = [];
 	if (isPositiveDirection(n[0].direction)) {
@@ -301,10 +304,9 @@ function yeetModForm(elt, commit_finisher, word_cells, played_words) {
 	// j for consistency with the above disaster
 	for (var j = 0; j < played_words.length - 1; j++) {
 	    var i = played_words[j].filter(function (w) { return w.cell_idx >= 0 })[0].cell_idx;
-	    var word = document.getElementById('word-at-' + i).innerText;
+	    var word = document.getElementById('word-at-' + j).innerText;
 	    words.push({str: word, cells: played_words[j]});
 	}
-	console.log(words);
 	commit_finisher(words);
     });
     elt.appendChild(button);
@@ -342,7 +344,7 @@ function TurnCommitter(ws_msg_sender, tile_mod_form_elt_id) {
 	    return;
 	}
 	var played_words = [];
-	augmentWordList(cells,word_cells, played_words);
+	augmentWordList(cells, word_cells, played_words);
 
 	yeetModForm(mod_form_elt, function(wds) {
 	    ws_msg_sender('turn', wds.map(function(wd) {

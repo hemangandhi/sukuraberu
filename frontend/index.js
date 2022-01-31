@@ -36,6 +36,7 @@ function listPlayers(hand_elt, my_name, players_msg){
 
 function updateGame(hand_elt, my_name, cells, turn_button, game_data) {
     listPlayers(hand_elt, my_name, game_data);
+    document.getElementById('word-list').innerHTML = '';
     for (var i = 0; i < game_data.words.length; i++) {
 	var word = game_data.words[i]
 	addStrToHtmlList('word-list', word.characters);
